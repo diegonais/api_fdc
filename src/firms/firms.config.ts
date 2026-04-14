@@ -61,8 +61,12 @@ export function getFirmsSettings(configService: ConfigService): FirmsSettings {
   if (!Number.isInteger(lookbackDays) || lookbackDays < 0) {
     throw new Error('FIRMS_LOOKBACK_DAYS must be an integer >= 0.');
   }
-  if (!Number.isInteger(syncEveryMinutes) || syncEveryMinutes < 1) {
-    throw new Error('FIRMS_SYNC_EVERY_MINUTES must be an integer >= 1.');
+  if (
+    !Number.isInteger(syncEveryMinutes) ||
+    syncEveryMinutes < 1 ||
+    syncEveryMinutes > 59
+  ) {
+    throw new Error('FIRMS_SYNC_EVERY_MINUTES must be an integer between 1 and 59.');
   }
   if (!Number.isInteger(requestTimeoutMs) || requestTimeoutMs < 1000) {
     throw new Error('FIRMS_REQUEST_TIMEOUT_MS must be an integer >= 1000.');

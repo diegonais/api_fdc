@@ -1,16 +1,23 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SchedulerRegistry } from '@nestjs/schedule';
+import { CronJob } from 'cron';
+import pino, { type Logger as PinoLogger } from 'pino';
 import { DataSource } from 'typeorm';
 import { Detection } from '../detections/entities/detection.entity';
+import { SyncFirmsDto } from './dto/sync-firms.dto';
 import { getFirmsSettings } from './firms.config';
 import { FirmsClient } from './firms.client';
 import { FirmsMapper } from './firms.mapper';
-import { SyncFirmsDto } from './dto/sync-firms.dto';
 import {
   FirmsSyncSummary,
   PreparedDetectionRecord,
   SourceSyncResult,
 } from './firms.types';
+
+const FIRMS_INCREMENTAL_SYNC_JOB_NAME = 'firms_incremental_sync';
+
+type IncrementalSyncTrigger = 'boot' | 'cron';
 
 type DetectionIdLookupRow = {
   dedupe_key: string;
@@ -24,15 +31,75 @@ type PersistedSourceTotals = {
 };
 
 @Injectable()
-export class FirmsIngestionService {
-  private readonly logger = new Logger(FirmsIngestionService.name);
+export class FirmsIngestionService implements OnModuleInit {
+  private readonly logger: PinoLogger = pino({
+    name: FirmsIngestionService.name,
+    level: process.env.LOG_LEVEL ?? 'info',
+    timestamp: pino.stdTimeFunctions.isoTime,
+    transport:
+      process.env.NODE_ENV === 'production'
+        ? undefined
+        : {
+            target: 'pino-pretty',
+            options: {
+              colorize: true,
+              translateTime: 'SYS:dd/mm/yyyy, h:MM:ss TT',
+              ignore: 'pid,hostname',
+              singleLine: true,
+            },
+          },
+  });
+  private isIncrementalSyncRunning = false;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
     private readonly firmsClient: FirmsClient,
     private readonly firmsMapper: FirmsMapper,
+    private readonly schedulerRegistry: SchedulerRegistry,
   ) {}
+
+  onModuleInit(): void {
+    const settings = getFirmsSettings(this.configService);
+    const cronExpression = this.buildCronExpression(settings.syncEveryMinutes);
+    const timezone = String(this.configService.get('TZ') ?? 'America/La_Paz');
+
+    if (this.schedulerRegistry.doesExist('cron', FIRMS_INCREMENTAL_SYNC_JOB_NAME)) {
+      this.schedulerRegistry.deleteCronJob(FIRMS_INCREMENTAL_SYNC_JOB_NAME);
+    }
+
+    const incrementalSyncJob = new CronJob(
+      cronExpression,
+      () => {
+        void this.runIncrementalSync('cron');
+      },
+      null,
+      false,
+      timezone,
+    );
+
+    this.schedulerRegistry.addCronJob(
+      FIRMS_INCREMENTAL_SYNC_JOB_NAME,
+      incrementalSyncJob,
+    );
+    incrementalSyncJob.start();
+
+    this.logger.info(
+      {
+        cronExpression,
+        syncEveryMinutes: settings.syncEveryMinutes,
+        dayRange: settings.lookbackDays,
+        bbox: settings.bbox,
+        sources: settings.enabledSources,
+        timezone,
+      },
+      'FIRMS incremental cron job started.',
+    );
+
+    if (settings.runOnBoot) {
+      void this.runIncrementalSync('boot');
+    }
+  }
 
   async runManualSync(options: SyncFirmsDto = {}): Promise<FirmsSyncSummary> {
     const settings = getFirmsSettings(this.configService);
@@ -66,10 +133,28 @@ export class FirmsIngestionService {
           ...persistedResult,
         });
       } catch (error) {
-        this.logger.error(
-          `FIRMS sync failed for ${source}`,
-          error instanceof Error ? error.stack : String(error),
-        );
+        if (error instanceof Error) {
+          this.logger.error(
+            {
+              source,
+              dayRange,
+              startDate,
+              err: error,
+            },
+            `FIRMS sync failed for ${source}`,
+          );
+        } else {
+          this.logger.error(
+            {
+              source,
+              dayRange,
+              startDate,
+              err: String(error),
+            },
+            `FIRMS sync failed for ${source}`,
+          );
+        }
+
         bySource.push({
           source,
           fetchedCount: 0,
@@ -94,6 +179,111 @@ export class FirmsIngestionService {
       },
       bySource,
     };
+  }
+
+  private async runIncrementalSync(trigger: IncrementalSyncTrigger): Promise<void> {
+    if (this.isIncrementalSyncRunning) {
+      this.logger.warn(
+        { trigger },
+        'Skipping FIRMS incremental sync because a previous run is still in progress.',
+      );
+      return;
+    }
+
+    this.isIncrementalSyncRunning = true;
+    const startedAt = Date.now();
+    const settings = getFirmsSettings(this.configService);
+
+    this.logger.info(
+      {
+        trigger,
+        dayRange: settings.lookbackDays,
+        bbox: settings.bbox,
+        sources: settings.enabledSources,
+      },
+      `Starting FIRMS incremental sync for the last ${settings.lookbackDays} day(s).`,
+    );
+
+    try {
+      const summary = await this.runManualSync({
+        sources: settings.enabledSources,
+        dayRange: settings.lookbackDays,
+      });
+
+      for (const sourceResult of summary.bySource) {
+        if (sourceResult.error) {
+          this.logger.error(
+            {
+              trigger,
+              source: sourceResult.source,
+              fetched: sourceResult.fetchedCount,
+              inserted: sourceResult.insertedCount,
+              duplicates: sourceResult.duplicateCount,
+              error: sourceResult.error,
+            },
+            `FIRMS ${sourceResult.source} failed.`,
+          );
+          continue;
+        }
+
+        this.logger.info(
+          {
+            trigger,
+            source: sourceResult.source,
+            fetched: sourceResult.fetchedCount,
+            inserted: sourceResult.insertedCount,
+            duplicates: sourceResult.duplicateCount,
+          },
+          `FIRMS ${sourceResult.source} fetched=${sourceResult.fetchedCount}, inserted=${sourceResult.insertedCount}, duplicates=${sourceResult.duplicateCount}`,
+        );
+      }
+
+      const status = summary.totals.failedSources > 0 ? 'PARTIAL_FAILED' : 'SUCCEEDED';
+      const durationMs = Date.now() - startedAt;
+      this.logger.info(
+        {
+          trigger,
+          status,
+          fetched: summary.totals.fetchedCount,
+          inserted: summary.totals.insertedCount,
+          duplicates: summary.totals.duplicateCount,
+          failedSources: summary.totals.failedSources,
+          durationMs,
+        },
+        `Finished FIRMS incremental sync for the last ${settings.lookbackDays} day(s). status=${status}, fetched=${summary.totals.fetchedCount}, inserted=${summary.totals.insertedCount}, duplicates=${summary.totals.duplicateCount}, durationMs=${durationMs}.`,
+      );
+    } catch (error) {
+      const durationMs = Date.now() - startedAt;
+      if (error instanceof Error) {
+        this.logger.error(
+          {
+            trigger,
+            durationMs,
+            err: error,
+          },
+          'FIRMS incremental sync crashed unexpectedly.',
+        );
+      } else {
+        this.logger.error(
+          {
+            trigger,
+            durationMs,
+            err: String(error),
+          },
+          'FIRMS incremental sync crashed unexpectedly.',
+        );
+      }
+    } finally {
+      this.isIncrementalSyncRunning = false;
+    }
+  }
+
+  private buildCronExpression(syncEveryMinutes: number): string {
+    if (syncEveryMinutes === 1) {
+      return '* * * * *';
+    }
+
+    return `*/${syncEveryMinutes} * * * *`;
   }
 
   private async persistPreparedRows(
