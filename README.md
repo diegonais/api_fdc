@@ -1,98 +1,149 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# API FDC
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API para ingesta y consulta de focos de calor usando NASA FIRMS.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Proposito
 
-## Description
+Este proyecto permite:
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- sincronizar detecciones de focos de calor desde NASA FIRMS,
+- guardar las detecciones en PostgreSQL con deduplicacion,
+- consultar detecciones con filtros y paginacion,
+- mantener actualizada la base con un cron incremental.
 
-## Project setup
+## Fuente de datos
 
-```bash
-$ yarn install
+Los datos se obtienen desde NASA FIRMS (Fire Information for Resource Management System), usando el endpoint CSV por area.
+
+- Proveedor: NASA FIRMS
+- Base URL configurada por defecto: `https://firms.modaps.eosdis.nasa.gov/api/area/csv`
+- Fuentes soportadas:
+  - `VIIRS_SNPP_NRT`
+  - `VIIRS_NOAA20_NRT`
+  - `VIIRS_NOAA21_NRT`
+  - `MODIS_NRT`
+- Requiere API key en `FIRMS_MAP_KEY`
+
+## Zona horaria (importante)
+
+La variable `TZ` es clave en el comportamiento del sistema:
+
+- define la zona horaria del cron,
+- define la fecha actual usada para calcular el seed inicial por ventanas,
+- se aplica tambien en PostgreSQL cuando usas `docker-compose`.
+
+Valor recomendado para este proyecto:
+
+```env
+TZ=America/La_Paz
 ```
 
-## Compile and run the project
+## Requisitos
+
+- Node.js 20+
+- Yarn 1.x
+- PostgreSQL 16+ (o Docker con `docker-compose`)
+
+## Configuracion inicial
+
+1. Clonar el repositorio.
+2. Instalar dependencias:
 
 ```bash
-# development
-$ yarn run start
-
-# watch mode
-$ yarn run start:dev
-
-# production mode
-$ yarn run start:prod
+yarn install
 ```
 
-## Run tests
+3. Copiar el archivo de entorno:
 
 ```bash
-# unit tests
-$ yarn run test
-
-# e2e tests
-$ yarn run test:e2e
-
-# test coverage
-$ yarn run test:cov
+cp .env.template .env
 ```
 
-## Deployment
+En Windows PowerShell:
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+```powershell
+Copy-Item .env.template .env
+```
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+4. Editar `.env` y completar al menos:
+
+- `FIRMS_MAP_KEY`
+- `FIRMS_BBOX`
+- credenciales de base de datos (`DB_*`) o `DATABASE_URL`
+- `TZ` (si aplica)
+
+## Flujo de arranque (automatico)
+
+Para dejar el sistema funcional desde cero, el orden recomendado es:
+
+1. Ejecutar migraciones.
+2. Levantar la API.
+
+Comandos:
 
 ```bash
-$ yarn install -g @nestjs/mau
-$ mau deploy
+yarn migration:run
+yarn start:dev
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Cuando la API inicia:
 
-## Resources
+- si la tabla `detections` esta vacia:
+  - ejecuta automaticamente la carga inicial desde `FIRMS_INITIAL_SYNC_START_DATE`,
+  - al terminar, habilita el cron incremental (`FIRMS_SYNC_EVERY_MINUTES`).
+- si `detections` ya tiene datos:
+  - salta la carga inicial,
+  - inicia el cron directamente.
 
-Check out a few resources that may come in handy when working with NestJS:
+## Seed inicial manual (opcional)
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Si quieres ejecutar solo la carga inicial manualmente:
 
-## Support
+```bash
+yarn firms:seed:initial
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+Este script deshabilita el cron durante su ejecucion (`FIRMS_DISABLE_CRON=true` solo para ese proceso).
 
-## Stay in touch
+## Variables FIRMS mas importantes
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+- `FIRMS_INITIAL_SYNC_START_DATE`: fecha inicial del primer seed (formato `YYYY-MM-DD`).
+- `FIRMS_SYNC_EVERY_MINUTES`: frecuencia del cron incremental (1 a 59).
+- `FIRMS_LOOKBACK_DAYS`: ventana en dias usada por el cron incremental.
+- `FIRMS_ENABLED_SOURCES`: fuentes activas separadas por coma.
+- `FIRMS_DISABLE_CRON`: si esta en `true`, no levanta cron al iniciar la app.
 
-## License
+## Docker
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Levantar servicios:
+
+```bash
+docker compose up --build
+```
+
+Ejecutar migraciones (en otro terminal):
+
+```bash
+docker compose exec api yarn migration:run
+```
+
+Notas:
+
+- `db` se inicia con PostgreSQL.
+- `api` usa `.env` y espera a que `db` este saludable.
+- recuerda ejecutar migraciones antes del primer uso de la API.
+
+## Endpoints
+
+- Swagger: `http://localhost:<PORT>/api_fdc/v1/docs`
+- Health: `GET /api_fdc/v1/health`
+- Detecciones: `GET /api_fdc/v1/firms/detections`
+- Sync manual: `POST /api_fdc/v1/firms/sync`
+
+## Scripts utiles
+
+- `yarn start:dev`
+- `yarn build`
+- `yarn migration:run`
+- `yarn migration:revert`
+- `yarn firms:seed:initial`

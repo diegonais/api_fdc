@@ -24,8 +24,21 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('API FDC')
-    .setDescription('API de focos de calor (NASA FIRMS)')
+    .setDescription(
+      [
+        'API para ingesta y consulta de focos de calor de NASA FIRMS.',
+        '',
+        'Flujo recomendado de arranque:',
+        '1. Ejecutar migraciones.',
+        '2. Iniciar la API.',
+        '3. Si no hay datos en `detections`, se realiza carga inicial desde `FIRMS_INITIAL_SYNC_START_DATE`.',
+        '4. Al finalizar la carga inicial, se habilita el cron incremental.',
+      ].join('\n'),
+    )
     .setVersion('1.0')
+    .addTag('Health', 'Estado de salud y conectividad de la API.')
+    .addTag('Detections', 'Consulta paginada de detecciones almacenadas.')
+    .addTag('FIRMS Sync', 'Sincronizacion manual de datos desde NASA FIRMS.')
     .build();
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api_fdc/v1/docs', app, swaggerDocument);

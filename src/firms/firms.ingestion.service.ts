@@ -4,10 +4,12 @@ import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import { type Logger as PinoLogger } from 'pino';
 import { DataSource } from 'typeorm';
+import { parseBoolean } from '../config/parse-env.util';
 import { Detection } from '../detections/entities/detection.entity';
 import { AppLogger } from '../logger/app-logger.service';
 import { SyncFirmsDto } from './dto/sync-firms.dto';
-import { getFirmsSettings } from './firms.config';
+import { FIRMS_MAX_DAY_RANGE } from './firms.constants';
+import { FirmsSettings, getFirmsSettings } from './firms.config';
 import { FirmsClient } from './firms.client';
 import { FirmsMapper } from './firms.mapper';
 import {
@@ -17,8 +19,10 @@ import {
 } from './firms.types';
 
 const FIRMS_INCREMENTAL_SYNC_JOB_NAME = 'firms_incremental_sync';
+const MILLISECONDS_IN_A_DAY = 24 * 60 * 60 * 1000;
 
 type IncrementalSyncTrigger = 'boot' | 'cron';
+type InitialSyncTrigger = 'startup' | 'script';
 
 type DetectionIdLookupRow = {
   dedupe_key: string;
@@ -49,46 +53,124 @@ export class FirmsIngestionService implements OnModuleInit {
     });
   }
 
-  onModuleInit(): void {
+  async onModuleInit(): Promise<void> {
     const settings = getFirmsSettings(this.configService);
-    const cronExpression = this.buildCronExpression(settings.syncEveryMinutes);
-    const timezone = String(this.configService.get('TZ') ?? 'America/La_Paz');
+    const timezone = this.resolveTimezone();
+    const cronDisabled = parseBoolean(this.configService.get('FIRMS_DISABLE_CRON'));
 
-    if (this.schedulerRegistry.doesExist('cron', FIRMS_INCREMENTAL_SYNC_JOB_NAME)) {
-      this.schedulerRegistry.deleteCronJob(FIRMS_INCREMENTAL_SYNC_JOB_NAME);
+    if (cronDisabled) {
+      this.logger.warn(
+        { timezone },
+        'FIRMS cron startup skipped because FIRMS_DISABLE_CRON=true.',
+      );
+      return;
     }
 
-    const incrementalSyncJob = new CronJob(
-      cronExpression,
-      () => {
-        void this.runIncrementalSync('cron');
-      },
-      null,
-      false,
-      timezone,
-    );
+    const shouldRunInitialSync = await this.shouldRunInitialSync();
 
-    this.schedulerRegistry.addCronJob(
-      FIRMS_INCREMENTAL_SYNC_JOB_NAME,
-      incrementalSyncJob,
-    );
-    incrementalSyncJob.start();
+    if (shouldRunInitialSync) {
+      await this.runInitialSyncFromConfiguredDate('startup', settings, timezone);
+    } else {
+      this.logger.info(
+        'Detections already exist. Skipping initial FIRMS sync from configured date.',
+      );
+    }
+
+    this.registerAndStartIncrementalCron(settings, timezone);
+
+    if (settings.runOnBoot && !shouldRunInitialSync) {
+      void this.runIncrementalSync('boot');
+    }
+  }
+
+  async runInitialSyncFromConfiguredDate(
+    trigger: InitialSyncTrigger = 'script',
+    settings = getFirmsSettings(this.configService),
+    timezone = this.resolveTimezone(),
+  ): Promise<void> {
+    const startDate = this.parseIsoDate(settings.initialSyncStartDate);
+    const today = this.parseIsoDate(this.getTodayIsoDate(timezone));
+
+    if (startDate.getTime() > today.getTime()) {
+      this.logger.warn(
+        {
+          trigger,
+          initialSyncStartDate: this.formatIsoDate(startDate),
+          timezone,
+          today: this.formatIsoDate(today),
+        },
+        'Skipping FIRMS initial sync because FIRMS_INITIAL_SYNC_START_DATE is in the future.',
+      );
+      return;
+    }
+
+    const totalDays = this.calculateDayDifference(startDate, today) + 1;
+    const totalWindows = Math.ceil(totalDays / FIRMS_MAX_DAY_RANGE);
+    let cursor = startDate;
+    let completedWindows = 0;
+    let fetchedCount = 0;
+    let insertedCount = 0;
+    let duplicateCount = 0;
+    let failedSources = 0;
+    const startedAt = Date.now();
 
     this.logger.info(
       {
-        cronExpression,
-        syncEveryMinutes: settings.syncEveryMinutes,
-        dayRange: settings.lookbackDays,
-        bbox: settings.bbox,
+        trigger,
+        initialSyncStartDate: this.formatIsoDate(startDate),
+        finalDate: this.formatIsoDate(today),
+        totalDays,
+        maxWindowDays: FIRMS_MAX_DAY_RANGE,
+        totalWindows,
         sources: settings.enabledSources,
-        timezone,
       },
-      'FIRMS incremental cron job started.',
+      'Starting FIRMS initial sync from configured date.',
     );
 
-    if (settings.runOnBoot) {
-      void this.runIncrementalSync('boot');
+    while (cursor.getTime() <= today.getTime()) {
+      const daysRemaining = this.calculateDayDifference(cursor, today) + 1;
+      const dayRange = Math.min(daysRemaining, FIRMS_MAX_DAY_RANGE);
+      const windowStartDate = this.formatIsoDate(cursor);
+
+      completedWindows += 1;
+      this.logger.info(
+        {
+          trigger,
+          window: completedWindows,
+          totalWindows,
+          startDate: windowStartDate,
+          dayRange,
+        },
+        'Running FIRMS initial sync window.',
+      );
+
+      const summary = await this.runManualSync({
+        sources: settings.enabledSources,
+        dayRange,
+        startDate: windowStartDate,
+      });
+
+      fetchedCount += summary.totals.fetchedCount;
+      insertedCount += summary.totals.insertedCount;
+      duplicateCount += summary.totals.duplicateCount;
+      failedSources += summary.totals.failedSources;
+      cursor = this.addDays(cursor, dayRange);
     }
+
+    const durationMs = Date.now() - startedAt;
+    this.logger.info(
+      {
+        trigger,
+        completedWindows,
+        totalWindows,
+        fetched: fetchedCount,
+        inserted: insertedCount,
+        duplicates: duplicateCount,
+        failedSources,
+        durationMs,
+      },
+      'Finished FIRMS initial sync from configured date.',
+    );
   }
 
   async runManualSync(options: SyncFirmsDto = {}): Promise<FirmsSyncSummary> {
@@ -274,6 +356,109 @@ export class FirmsIngestionService implements OnModuleInit {
     }
 
     return `*/${syncEveryMinutes} * * * *`;
+  }
+
+  private registerAndStartIncrementalCron(
+    settings: FirmsSettings,
+    timezone: string,
+  ): void {
+    const cronExpression = this.buildCronExpression(settings.syncEveryMinutes);
+
+    if (this.schedulerRegistry.doesExist('cron', FIRMS_INCREMENTAL_SYNC_JOB_NAME)) {
+      this.schedulerRegistry.deleteCronJob(FIRMS_INCREMENTAL_SYNC_JOB_NAME);
+    }
+
+    const incrementalSyncJob = new CronJob(
+      cronExpression,
+      () => {
+        void this.runIncrementalSync('cron');
+      },
+      null,
+      false,
+      timezone,
+    );
+
+    this.schedulerRegistry.addCronJob(
+      FIRMS_INCREMENTAL_SYNC_JOB_NAME,
+      incrementalSyncJob,
+    );
+    incrementalSyncJob.start();
+
+    this.logger.info(
+      {
+        cronExpression,
+        syncEveryMinutes: settings.syncEveryMinutes,
+        dayRange: settings.lookbackDays,
+        bbox: settings.bbox,
+        sources: settings.enabledSources,
+        timezone,
+      },
+      'FIRMS incremental cron job started.',
+    );
+  }
+
+  private async shouldRunInitialSync(): Promise<boolean> {
+    const rows = (await this.dataSource.query(
+      `
+        SELECT 1
+        FROM detections
+        LIMIT 1
+      `,
+    )) as unknown[];
+
+    return rows.length === 0;
+  }
+
+  private resolveTimezone(): string {
+    return String(this.configService.get('TZ') ?? 'America/La_Paz');
+  }
+
+  private getTodayIsoDate(timezone: string): string {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+
+    if (!year || !month || !day) {
+      throw new Error('Could not determine current date for initial FIRMS sync.');
+    }
+
+    return `${year}-${month}-${day}`;
+  }
+
+  private parseIsoDate(value: string): Date {
+    const normalized = value.trim().slice(0, 10);
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+      throw new Error(`Invalid ISO date value: "${value}"`);
+    }
+
+    const [year, month, day] = normalized.split('-').map((part) => Number(part));
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+
+    if (this.formatIsoDate(parsed) !== normalized) {
+      throw new Error(`Invalid ISO date value: "${value}"`);
+    }
+
+    return parsed;
+  }
+
+  private formatIsoDate(value: Date): string {
+    return value.toISOString().slice(0, 10);
+  }
+
+  private addDays(baseDate: Date, days: number): Date {
+    return new Date(baseDate.getTime() + days * MILLISECONDS_IN_A_DAY);
+  }
+
+  private calculateDayDifference(from: Date, to: Date): number {
+    return Math.floor((to.getTime() - from.getTime()) / MILLISECONDS_IN_A_DAY);
   }
 
   private async persistPreparedRows(

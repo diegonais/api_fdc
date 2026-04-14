@@ -13,6 +13,7 @@
     "migration:generate": "yarn typeorm migration:generate src/database/migrations/AutoMigration",
     "migration:run": "yarn typeorm migration:run",
     "migration:revert": "yarn typeorm migration:revert",
+    "firms:seed:initial": "node -r ts-node/register src/scripts/firms-initial-sync.ts",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",

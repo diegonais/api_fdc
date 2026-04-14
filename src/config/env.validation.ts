@@ -13,6 +13,7 @@ export const envValidationSchema = Joi.object({
   FIRMS_LOOKBACK_DAYS: Joi.number().integer().min(0).default(4),
   FIRMS_SYNC_EVERY_MINUTES: Joi.number().integer().min(1).max(59).default(5),
   FIRMS_RUN_ON_BOOT: Joi.boolean().default(true),
+  FIRMS_DISABLE_CRON: Joi.boolean().default(false),
   FIRMS_REQUEST_TIMEOUT_MS: Joi.number().integer().min(1000).default(15000),
 
   DATABASE_URL: Joi.string().allow('').default(''),
