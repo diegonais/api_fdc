@@ -7,7 +7,6 @@ import { AppLogger } from './logger/app-logger.service';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
-    logger: false,
   });
   const appLogger = app.get(AppLogger);
   app.useLogger(appLogger);
@@ -34,4 +33,8 @@ async function bootstrap() {
   const port = Number(process.env.PORT) || 3000;
   await app.listen(port, '0.0.0.0');
 }
-bootstrap();
+bootstrap().catch((error) => {
+  // Fallback log in case the app fails before AppLogger is fully wired.
+  console.error('Application failed to bootstrap:', error);
+  process.exit(1);
+});

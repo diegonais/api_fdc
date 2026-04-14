@@ -9,7 +9,7 @@ import { HealthModule } from './health/health.module';
 import { getTypeOrmConfig } from './database/typeorm.config';
 import { FirmsModule } from './firms/firms.module';
 import { DetectionsModule } from './detections/detections.module';
-import { AppLogger } from './logger/app-logger.service';
+import { LoggerModule } from './logger/logger.module';
 
 @Module({
   imports: [
@@ -23,11 +23,12 @@ import { AppLogger } from './logger/app-logger.service';
       inject: [ConfigService],
       useFactory: getTypeOrmConfig,
     }),
+    LoggerModule,
     HealthModule,
     FirmsModule,
     DetectionsModule,
   ],
   controllers: [AppController],
-  providers: [AppService, AppLogger],
+  providers: [AppService],
 })
 export class AppModule {}
