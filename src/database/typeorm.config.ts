@@ -8,7 +8,7 @@ export const getTypeOrmConfig = (configService: ConfigService): TypeOrmModuleOpt
 
   const common: TypeOrmModuleOptions = {
     type: 'postgres',
-    autoLoadEntities: true,
+    entities: ['dist/**/*.entity{.js}', 'src/**/*.entity{.ts}'],
     synchronize: parseBoolean(configService.get('DB_SYNCHRONIZE')),
     logging: parseBoolean(configService.get('DB_LOGGING')),
     migrations: ['dist/database/migrations/*{.js,.ts}'],

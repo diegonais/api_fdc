@@ -1,6 +1,11 @@
 import 'dotenv/config';
+import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { parseBoolean } from '../config/parse-env.util';
+import { Detection } from '../detections/entities/detection.entity';
+import { ModisDetail } from '../modis_details/entities/modis_detail.entity';
+import { ViirsDetail } from '../viirs_details/entities/viirs_detail.entity';
+import { CreateDetectionsAndSourceDetailsTables20260414133000 } from './migrations/20260414133000-CreateDetectionsAndSourceDetailsTables';
 
 const databaseUrl = process.env.DATABASE_URL;
 const dbSsl = parseBoolean(process.env.DB_SSL);
@@ -13,8 +18,8 @@ const dataSource = new DataSource({
   username: databaseUrl ? undefined : process.env.DB_USERNAME,
   password: databaseUrl ? undefined : process.env.DB_PASSWORD,
   database: databaseUrl ? undefined : process.env.DB_NAME,
-  entities: ['src/**/*.entity{.ts,.js}', 'dist/**/*.entity{.ts,.js}'],
-  migrations: ['src/database/migrations/*{.ts,.js}', 'dist/database/migrations/*{.ts,.js}'],
+  entities: [Detection, ViirsDetail, ModisDetail],
+  migrations: [CreateDetectionsAndSourceDetailsTables20260414133000],
   ssl: dbSsl ? { rejectUnauthorized: false } : false,
 });
 
