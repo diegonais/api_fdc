@@ -9,6 +9,7 @@ import { HealthModule } from './health/health.module';
 import { getTypeOrmConfig } from './database/typeorm.config';
 import { FirmsModule } from './firms/firms.module';
 import { DetectionsModule } from './detections/detections.module';
+import { AppLogger } from './logger/app-logger.service';
 
 @Module({
   imports: [
@@ -27,6 +28,6 @@ import { DetectionsModule } from './detections/detections.module';
     DetectionsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, AppLogger],
 })
 export class AppModule {}

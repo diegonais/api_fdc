@@ -2,9 +2,10 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
-import pino, { type Logger as PinoLogger } from 'pino';
+import { type Logger as PinoLogger } from 'pino';
 import { DataSource } from 'typeorm';
 import { Detection } from '../detections/entities/detection.entity';
+import { AppLogger } from '../logger/app-logger.service';
 import { SyncFirmsDto } from './dto/sync-firms.dto';
 import { getFirmsSettings } from './firms.config';
 import { FirmsClient } from './firms.client';
@@ -32,23 +33,7 @@ type PersistedSourceTotals = {
 
 @Injectable()
 export class FirmsIngestionService implements OnModuleInit {
-  private readonly logger: PinoLogger = pino({
-    name: FirmsIngestionService.name,
-    level: process.env.LOG_LEVEL ?? 'info',
-    timestamp: pino.stdTimeFunctions.isoTime,
-    transport:
-      process.env.NODE_ENV === 'production'
-        ? undefined
-        : {
-            target: 'pino-pretty',
-            options: {
-              colorize: true,
-              translateTime: 'SYS:dd/mm/yyyy, h:MM:ss TT',
-              ignore: 'pid,hostname',
-              singleLine: true,
-            },
-          },
-  });
+  private readonly logger: PinoLogger;
   private isIncrementalSyncRunning = false;
 
   constructor(
@@ -57,7 +42,12 @@ export class FirmsIngestionService implements OnModuleInit {
     private readonly firmsClient: FirmsClient,
     private readonly firmsMapper: FirmsMapper,
     private readonly schedulerRegistry: SchedulerRegistry,
-  ) {}
+    private readonly appLogger: AppLogger,
+  ) {
+    this.logger = this.appLogger.child({
+      context: FirmsIngestionService.name,
+    });
+  }
 
   onModuleInit(): void {
     const settings = getFirmsSettings(this.configService);

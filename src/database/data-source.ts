@@ -9,6 +9,7 @@ import { CreateDetectionsAndSourceDetailsTables20260414133000 } from './migratio
 
 const databaseUrl = process.env.DATABASE_URL;
 const dbSsl = parseBoolean(process.env.DB_SSL);
+const dbTimezone = String(process.env.TZ || 'America/La_Paz').trim() || 'America/La_Paz';
 
 const dataSource = new DataSource({
   type: 'postgres',
@@ -21,6 +22,9 @@ const dataSource = new DataSource({
   entities: [Detection, ViirsDetail, ModisDetail],
   migrations: [CreateDetectionsAndSourceDetailsTables20260414133000],
   ssl: dbSsl ? { rejectUnauthorized: false } : false,
+  extra: {
+    options: `-c TimeZone=${dbTimezone}`,
+  },
 });
 
 export default dataSource;
