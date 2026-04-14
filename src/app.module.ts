@@ -7,6 +7,7 @@ import { envValidationSchema } from './config/env.validation';
 import { HealthModule } from './health/health.module';
 import { getTypeOrmConfig } from './database/typeorm.config';
 import { FirmsModule } from './firms/firms.module';
+import { DetectionsModule } from './detections/detections.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { FirmsModule } from './firms/firms.module';
     }),
     HealthModule,
     FirmsModule,
+    DetectionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
