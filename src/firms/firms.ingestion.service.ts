@@ -121,8 +121,9 @@ export class FirmsIngestionService {
         ? (insertResult.raw as DetectionIdLookupRow[])
         : [];
       const insertedCount = insertedRows.length;
-      const detectionIdsByDedupe = new Map(
-        insertedRows.map((row) => [row.dedupe_key, row.id]),
+      const detectionIdsByDedupe = await this.findDetectionIdsByDedupeKeys(
+        manager,
+        preparedRows.map((row) => row.dedupeKey),
       );
       const viirsDetails = preparedRows.flatMap((row) => {
         const detectionId = detectionIdsByDedupe.get(row.dedupeKey);
@@ -152,23 +153,11 @@ export class FirmsIngestionService {
       });
 
       if (viirsDetails.length > 0) {
-        await manager
-          .createQueryBuilder()
-          .insert()
-          .into('viirs_details')
-          .values(viirsDetails)
-          .orIgnore()
-          .execute();
+        await this.insertViirsDetails(manager, viirsDetails);
       }
 
       if (modisDetails.length > 0) {
-        await manager
-          .createQueryBuilder()
-          .insert()
-          .into('modis_details')
-          .values(modisDetails)
-          .orIgnore()
-          .execute();
+        await this.insertModisDetails(manager, modisDetails);
       }
 
       return {
@@ -179,9 +168,89 @@ export class FirmsIngestionService {
     });
   }
 
+  private async findDetectionIdsByDedupeKeys(
+    manager: { query: (sql: string, params?: unknown[]) => Promise<unknown> },
+    dedupeKeys: string[],
+  ): Promise<Map<string, string>> {
+    const uniqueDedupeKeys = [...new Set(dedupeKeys)];
+
+    if (uniqueDedupeKeys.length === 0) return new Map();
+
+    const rows = (await manager.query(
+      `
+        SELECT id, dedupe_key
+        FROM detections
+        WHERE dedupe_key = ANY($1)
+      `,
+      [uniqueDedupeKeys],
+    )) as DetectionIdLookupRow[];
+
+    return new Map(rows.map((row) => [row.dedupe_key, row.id]));
+  }
+
   private getErrorMessage(error: unknown): string {
     if (error instanceof Error) return error.message;
 
     return 'Unknown FIRMS ingestion error';
+  }
+
+  private async insertViirsDetails(
+    manager: { query: (sql: string, params?: unknown[]) => Promise<unknown> },
+    rows: Array<{
+      detection_id: string;
+      bright_ti4: string;
+      bright_ti5: string;
+    }>,
+  ): Promise<void> {
+    const valuesSql = rows
+      .map(
+        (_, index) =>
+          `($${index * 3 + 1}, $${index * 3 + 2}, $${index * 3 + 3})`,
+      )
+      .join(', ');
+    const params = rows.flatMap((row) => [
+      row.detection_id,
+      row.bright_ti4,
+      row.bright_ti5,
+    ]);
+
+    await manager.query(
+      `
+        INSERT INTO viirs_details (detection_id, bright_ti4, bright_ti5)
+        VALUES ${valuesSql}
+        ON CONFLICT (detection_id) DO NOTHING
+      `,
+      params,
+    );
+  }
+
+  private async insertModisDetails(
+    manager: { query: (sql: string, params?: unknown[]) => Promise<unknown> },
+    rows: Array<{
+      detection_id: string;
+      brightness: string;
+      bright_t31: string;
+    }>,
+  ): Promise<void> {
+    const valuesSql = rows
+      .map(
+        (_, index) =>
+          `($${index * 3 + 1}, $${index * 3 + 2}, $${index * 3 + 3})`,
+      )
+      .join(', ');
+    const params = rows.flatMap((row) => [
+      row.detection_id,
+      row.brightness,
+      row.bright_t31,
+    ]);
+
+    await manager.query(
+      `
+        INSERT INTO modis_details (detection_id, brightness, bright_t31)
+        VALUES ${valuesSql}
+        ON CONFLICT (detection_id) DO NOTHING
+      `,
+      params,
+    );
   }
 }
