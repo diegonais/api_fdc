@@ -1,8 +1,17 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Detection } from '../detections/entities/detection.entity';
+import { ModisDetail } from '../modis_details/entities/modis_detail.entity';
+import { ViirsDetail } from '../viirs_details/entities/viirs_detail.entity';
 import { FirmsClient } from './firms.client';
+import { FirmsController } from './firms.controller';
+import { FirmsIngestionService } from './firms.ingestion.service';
+import { FirmsMapper } from './firms.mapper';
 
 @Module({
-  providers: [FirmsClient],
-  exports: [FirmsClient],
+  imports: [TypeOrmModule.forFeature([Detection, ViirsDetail, ModisDetail])],
+  controllers: [FirmsController],
+  providers: [FirmsClient, FirmsMapper, FirmsIngestionService],
+  exports: [FirmsClient, FirmsIngestionService],
 })
 export class FirmsModule {}
