@@ -3,9 +3,11 @@ import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { parseBoolean } from '../config/parse-env.util';
 import { Detection } from '../detections/entities/detection.entity';
+import { IngestionRun } from '../ingestion_runs/entities/ingestion_run.entity';
 import { ModisDetail } from '../modis_details/entities/modis_detail.entity';
 import { ViirsDetail } from '../viirs_details/entities/viirs_detail.entity';
 import { CreateDetectionsAndSourceDetailsTables20260414133000 } from './migrations/20260414133000-CreateDetectionsAndSourceDetailsTables';
+import { CreateIngestionRunsTable20260415110000 } from './migrations/20260415110000-CreateIngestionRunsTable';
 
 const databaseUrl = process.env.DATABASE_URL;
 const dbSsl = parseBoolean(process.env.DB_SSL);
@@ -19,8 +21,11 @@ const dataSource = new DataSource({
   username: databaseUrl ? undefined : process.env.DB_USERNAME,
   password: databaseUrl ? undefined : process.env.DB_PASSWORD,
   database: databaseUrl ? undefined : process.env.DB_NAME,
-  entities: [Detection, ViirsDetail, ModisDetail],
-  migrations: [CreateDetectionsAndSourceDetailsTables20260414133000],
+  entities: [Detection, ViirsDetail, ModisDetail, IngestionRun],
+  migrations: [
+    CreateDetectionsAndSourceDetailsTables20260414133000,
+    CreateIngestionRunsTable20260415110000,
+  ],
   ssl: dbSsl ? { rejectUnauthorized: false } : false,
   extra: {
     options: `-c TimeZone=${dbTimezone}`,

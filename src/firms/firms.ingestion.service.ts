@@ -237,7 +237,7 @@ export class FirmsIngestionService implements OnModuleInit {
       }
     }
 
-    return {
+    const summary: FirmsSyncSummary = {
       requested: {
         sources,
         dayRange,
@@ -251,6 +251,10 @@ export class FirmsIngestionService implements OnModuleInit {
       },
       bySource,
     };
+
+    await this.recordSuccessfulIngestionRun(summary);
+
+    return summary;
   }
 
   private async runIncrementalSync(trigger: IncrementalSyncTrigger): Promise<void> {
@@ -557,6 +561,53 @@ export class FirmsIngestionService implements OnModuleInit {
     if (error instanceof Error) return error.message;
 
     return 'Unknown FIRMS ingestion error';
+  }
+
+  private async recordSuccessfulIngestionRun(
+    summary: FirmsSyncSummary,
+  ): Promise<void> {
+    if (summary.totals.insertedCount <= 0 || summary.totals.failedSources > 0) {
+      return;
+    }
+
+    try {
+      await this.dataSource.query(
+        `
+          INSERT INTO ingestion_runs (
+            pipeline,
+            sources,
+            day_range,
+            start_date,
+            fetched_count,
+            inserted_count,
+            duplicate_count
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `,
+        [
+          'FIRMS',
+          summary.requested.sources,
+          summary.requested.dayRange,
+          summary.requested.startDate ?? null,
+          summary.totals.fetchedCount,
+          summary.totals.insertedCount,
+          summary.totals.duplicateCount,
+        ],
+      );
+    } catch (error) {
+      this.logger.error(
+        {
+          err: error instanceof Error ? error : String(error),
+          sources: summary.requested.sources,
+          dayRange: summary.requested.dayRange,
+          startDate: summary.requested.startDate,
+          fetched: summary.totals.fetchedCount,
+          inserted: summary.totals.insertedCount,
+          duplicates: summary.totals.duplicateCount,
+        },
+        'Failed to register a successful ingestion run.',
+      );
+    }
   }
 
   private async insertViirsDetails(
