@@ -115,22 +115,24 @@ Este script deshabilita el cron durante su ejecucion (`FIRMS_DISABLE_CRON=true` 
 
 ## Docker
 
-Levantar servicios:
+Levantar solo PostgreSQL:
 
 ```bash
-docker compose up --build
+docker compose up -d db
 ```
 
-Ejecutar migraciones (en otro terminal):
+Luego, desde tu entorno local:
 
 ```bash
-docker compose exec api yarn migration:run
+yarn migration:run
+yarn start:dev
 ```
 
 Notas:
 
 - `db` se inicia con PostgreSQL.
-- `api` usa `.env` y espera a que `db` este saludable.
+- la API se ejecuta localmente con `yarn start:dev`.
+- evita levantar otra instancia de API en Docker para no duplicar cron/ingestas.
 - recuerda ejecutar migraciones antes del primer uso de la API.
 
 ## Endpoints
