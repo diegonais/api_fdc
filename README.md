@@ -139,7 +139,10 @@ Notas:
 
 - Swagger: `http://localhost:<PORT>/api_fdc/v1/docs`
 - Health: `GET /api_fdc/v1/health`
-- Detecciones: `GET /api_fdc/v1/firms/detections`
+- Detecciones: `GET /api_fdc/v1/detections`
+- Detalle de deteccion: `GET /api_fdc/v1/detections/:id`
+- Resumen de detecciones: `GET /api_fdc/v1/detections/stats/summary`
+- Exportacion Excel: `GET /api_fdc/v1/detections/export/excel`
 - Sync manual: `POST /api_fdc/v1/firms/sync`
 
 ## Scripts utiles

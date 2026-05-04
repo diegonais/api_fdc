@@ -56,7 +56,9 @@ export class FirmsIngestionService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     const settings = getFirmsSettings(this.configService);
     const timezone = this.resolveTimezone();
-    const cronDisabled = parseBoolean(this.configService.get('FIRMS_DISABLE_CRON'));
+    const cronDisabled =
+      parseBoolean(this.configService.get('FIRMS_DISABLE_CRON')) ||
+      Boolean(process.env.JEST_WORKER_ID);
 
     if (cronDisabled) {
       this.logger.warn(
@@ -69,7 +71,11 @@ export class FirmsIngestionService implements OnModuleInit {
     const shouldRunInitialSync = await this.shouldRunInitialSync();
 
     if (shouldRunInitialSync) {
-      await this.runInitialSyncFromConfiguredDate('startup', settings, timezone);
+      await this.runInitialSyncFromConfiguredDate(
+        'startup',
+        settings,
+        timezone,
+      );
     } else {
       this.logger.info(
         'Detections already exist. Skipping initial FIRMS sync from configured date.',
@@ -247,7 +253,8 @@ export class FirmsIngestionService implements OnModuleInit {
         fetchedCount,
         insertedCount,
         duplicateCount,
-        failedSources: bySource.filter((result) => Boolean(result.error)).length,
+        failedSources: bySource.filter((result) => Boolean(result.error))
+          .length,
       },
       bySource,
     };
@@ -257,7 +264,9 @@ export class FirmsIngestionService implements OnModuleInit {
     return summary;
   }
 
-  private async runIncrementalSync(trigger: IncrementalSyncTrigger): Promise<void> {
+  private async runIncrementalSync(
+    trigger: IncrementalSyncTrigger,
+  ): Promise<void> {
     if (this.isIncrementalSyncRunning) {
       this.logger.warn(
         { trigger },
@@ -314,7 +323,8 @@ export class FirmsIngestionService implements OnModuleInit {
         );
       }
 
-      const status = summary.totals.failedSources > 0 ? 'PARTIAL_FAILED' : 'SUCCEEDED';
+      const status =
+        summary.totals.failedSources > 0 ? 'PARTIAL_FAILED' : 'SUCCEEDED';
       const durationMs = Date.now() - startedAt;
       this.logger.info(
         {
@@ -368,7 +378,9 @@ export class FirmsIngestionService implements OnModuleInit {
   ): void {
     const cronExpression = this.buildCronExpression(settings.syncEveryMinutes);
 
-    if (this.schedulerRegistry.doesExist('cron', FIRMS_INCREMENTAL_SYNC_JOB_NAME)) {
+    if (
+      this.schedulerRegistry.doesExist('cron', FIRMS_INCREMENTAL_SYNC_JOB_NAME)
+    ) {
       this.schedulerRegistry.deleteCronJob(FIRMS_INCREMENTAL_SYNC_JOB_NAME);
     }
 
@@ -430,7 +442,9 @@ export class FirmsIngestionService implements OnModuleInit {
     const day = parts.find((part) => part.type === 'day')?.value;
 
     if (!year || !month || !day) {
-      throw new Error('Could not determine current date for initial FIRMS sync.');
+      throw new Error(
+        'Could not determine current date for initial FIRMS sync.',
+      );
     }
 
     return `${year}-${month}-${day}`;
@@ -443,7 +457,9 @@ export class FirmsIngestionService implements OnModuleInit {
       throw new Error(`Invalid ISO date value: "${value}"`);
     }
 
-    const [year, month, day] = normalized.split('-').map((part) => Number(part));
+    const [year, month, day] = normalized
+      .split('-')
+      .map((part) => Number(part));
     const parsed = new Date(Date.UTC(year, month - 1, day));
 
     if (this.formatIsoDate(parsed) !== normalized) {

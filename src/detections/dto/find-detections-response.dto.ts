@@ -101,3 +101,101 @@ export class FindDetectionsResponseDto {
   @ApiProperty({ type: DetectionsPaginationMetaDto })
   meta!: DetectionsPaginationMetaDto;
 }
+
+export class ViirsDetailDto {
+  @ApiProperty({
+    description: 'Identificador unico del detalle VIIRS.',
+    example: 'a462b994-fbb5-493d-a964-538a2e44f5a8',
+  })
+  id!: string;
+
+  @ApiProperty({ example: 320.42 })
+  brightTi4!: number;
+
+  @ApiProperty({ example: 291.13 })
+  brightTi5!: number;
+
+  @ApiProperty({ example: '2026-04-14T13:40:22.089Z' })
+  createdAt!: string;
+
+  @ApiProperty({ example: '2026-04-14T13:40:22.089Z' })
+  updatedAt!: string;
+}
+
+export class ModisDetailDto {
+  @ApiProperty({
+    description: 'Identificador unico del detalle MODIS.',
+    example: 'a462b994-fbb5-493d-a964-538a2e44f5a8',
+  })
+  id!: string;
+
+  @ApiProperty({ example: 325.8 })
+  brightness!: number;
+
+  @ApiProperty({ example: 299.4 })
+  brightT31!: number;
+
+  @ApiProperty({ example: '2026-04-14T13:40:22.089Z' })
+  createdAt!: string;
+
+  @ApiProperty({ example: '2026-04-14T13:40:22.089Z' })
+  updatedAt!: string;
+}
+
+export class DetectionDetailDto extends DetectionItemDto {
+  @ApiProperty({
+    oneOf: [
+      { $ref: '#/components/schemas/ViirsDetailDto' },
+      { $ref: '#/components/schemas/ModisDetailDto' },
+    ],
+    nullable: true,
+  })
+  details!: ViirsDetailDto | ModisDetailDto | null;
+}
+
+export class DetectionDetailResponseDto {
+  @ApiProperty({ example: true })
+  success!: boolean;
+
+  @ApiProperty({ example: 'Detection retrieved successfully' })
+  message!: string;
+
+  @ApiProperty({ type: DetectionDetailDto })
+  data!: DetectionDetailDto;
+}
+
+export class DetectionSourceSummaryDto {
+  @ApiProperty({
+    enum: DetectionSourceType,
+    example: DetectionSourceType.VIIRS,
+  })
+  source!: DetectionSourceType;
+
+  @ApiProperty({ example: 128 })
+  total!: number;
+}
+
+export class DetectionSummaryDto {
+  @ApiProperty({ example: 154 })
+  totalDetections!: number;
+
+  @ApiProperty({ type: [DetectionSourceSummaryDto] })
+  totalsBySource!: DetectionSourceSummaryDto[];
+
+  @ApiProperty({ example: 78.42, nullable: true })
+  averageConfidence!: number | null;
+
+  @ApiProperty({ example: 140 })
+  numericConfidenceCount!: number;
+}
+
+export class DetectionSummaryResponseDto {
+  @ApiProperty({ example: true })
+  success!: boolean;
+
+  @ApiProperty({ example: 'Detection summary retrieved successfully' })
+  message!: string;
+
+  @ApiProperty({ type: DetectionSummaryDto })
+  data!: DetectionSummaryDto;
+}
