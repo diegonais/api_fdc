@@ -30,14 +30,26 @@ export class FirmsClient {
       dayRange,
       startDate,
     );
-    const response = await fetch(url, {
-      headers: { Accept: 'text/csv' },
-      signal: AbortSignal.timeout(settings.requestTimeoutMs),
-    });
+    let response: Response;
+
+    try {
+      response = await fetch(url, {
+        headers: { Accept: 'text/csv' },
+        signal: AbortSignal.timeout(settings.requestTimeoutMs),
+      });
+    } catch (error) {
+      throw new Error(
+        `FIRMS request failed for ${source}: ${this.formatTransportError(error)}`,
+      );
+    }
 
     if (!response.ok) {
+      const statusText = response.statusText ? ` ${response.statusText}` : '';
+      const errorDetail = await this.readErrorDetail(response, settings.mapKey);
+      const detailMessage = errorDetail ? `. Detail: ${errorDetail}` : '';
+
       throw new Error(
-        `FIRMS request failed for ${source} with status ${response.status}`,
+        `FIRMS request failed for ${source} with status ${response.status}${statusText}${detailMessage}`,
       );
     }
 
@@ -60,6 +72,48 @@ export class FirmsClient {
     if (!startDate) return basePath;
 
     return `${basePath}/${startDate}`;
+  }
+
+  private async readErrorDetail(
+    response: Response,
+    mapKey: string,
+  ): Promise<string | null> {
+    let responseText: string;
+
+    try {
+      responseText = await response.text();
+    } catch {
+      return null;
+    }
+
+    const normalizedDetail = this.redactMapKey(responseText, mapKey)
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 500);
+
+    return normalizedDetail || null;
+  }
+
+  private redactMapKey(value: string, mapKey: string): string {
+    if (!mapKey) return value;
+
+    return value.split(mapKey).join('[REDACTED_MAP_KEY]');
+  }
+
+  private formatTransportError(error: unknown): string {
+    if (error instanceof Error) {
+      const details = error.message
+        ? `${error.name}: ${error.message}`
+        : error.name;
+
+      if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+        return `request timeout (${details})`;
+      }
+
+      return details;
+    }
+
+    return 'Unknown network error';
   }
 
   private parseCsv(csv: string): FirmsCsvRecord[] {

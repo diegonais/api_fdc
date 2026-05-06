@@ -61,4 +61,44 @@ describe('FirmsClient', () => {
       client.fetchDetections(FirmsSource.MODIS_NRT, 1),
     ).rejects.toThrow('FIRMS request failed for MODIS_NRT with status 500');
   });
+
+  it('should include FIRMS error response detail for HTTP failures', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 400,
+      statusText: 'Bad Request',
+      text: async () => 'Invalid   MAP_KEY.\n',
+    } as Response);
+
+    await expect(
+      client.fetchDetections(FirmsSource.VIIRS_SNPP_NRT, 1),
+    ).rejects.toThrow(
+      'FIRMS request failed for VIIRS_SNPP_NRT with status 400 Bad Request. Detail: Invalid MAP_KEY.',
+    );
+  });
+
+  it('should distinguish transport errors from FIRMS HTTP responses', async () => {
+    jest.spyOn(global, 'fetch').mockRejectedValue(new TypeError('fetch failed'));
+
+    await expect(
+      client.fetchDetections(FirmsSource.VIIRS_SNPP_NRT, 1),
+    ).rejects.toThrow(
+      'FIRMS request failed for VIIRS_SNPP_NRT: TypeError: fetch failed',
+    );
+  });
+
+  it('should redact MAP_KEY if FIRMS includes it in an error response body', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 400,
+      statusText: 'Bad Request',
+      text: async () => 'Invalid MAP_KEY test-key.',
+    } as Response);
+
+    await expect(
+      client.fetchDetections(FirmsSource.VIIRS_SNPP_NRT, 1),
+    ).rejects.toThrow(
+      'FIRMS request failed for VIIRS_SNPP_NRT with status 400 Bad Request. Detail: Invalid MAP_KEY [REDACTED_MAP_KEY].',
+    );
+  });
 });
