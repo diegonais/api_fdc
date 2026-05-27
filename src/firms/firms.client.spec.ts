@@ -36,7 +36,7 @@ describe('FirmsClient', () => {
     jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       status: 200,
-      text: async () => csv,
+      text: () => Promise.resolve(csv),
     } as Response);
 
     const rows = await client.fetchDetections(FirmsSource.VIIRS_SNPP_NRT, 2);
@@ -54,7 +54,7 @@ describe('FirmsClient', () => {
     jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: false,
       status: 500,
-      text: async () => '',
+      text: () => Promise.resolve(''),
     } as Response);
 
     await expect(
@@ -67,7 +67,7 @@ describe('FirmsClient', () => {
       ok: false,
       status: 400,
       statusText: 'Bad Request',
-      text: async () => 'Invalid   MAP_KEY.\n',
+      text: () => Promise.resolve('Invalid   MAP_KEY.\n'),
     } as Response);
 
     await expect(
@@ -78,7 +78,9 @@ describe('FirmsClient', () => {
   });
 
   it('should distinguish transport errors from FIRMS HTTP responses', async () => {
-    jest.spyOn(global, 'fetch').mockRejectedValue(new TypeError('fetch failed'));
+    jest
+      .spyOn(global, 'fetch')
+      .mockRejectedValue(new TypeError('fetch failed'));
 
     await expect(
       client.fetchDetections(FirmsSource.VIIRS_SNPP_NRT, 1),
@@ -92,7 +94,7 @@ describe('FirmsClient', () => {
       ok: false,
       status: 400,
       statusText: 'Bad Request',
-      text: async () => 'Invalid MAP_KEY test-key.',
+      text: () => Promise.resolve('Invalid MAP_KEY test-key.'),
     } as Response);
 
     await expect(

@@ -49,8 +49,12 @@ export function getFirmsSettings(configService: ConfigService): FirmsSettings {
     configService.get('FIRMS_INITIAL_SYNC_START_DATE') ?? '',
   ).trim();
   const lookbackDays = Number(configService.get('FIRMS_LOOKBACK_DAYS'));
-  const syncEveryMinutes = Number(configService.get('FIRMS_SYNC_EVERY_MINUTES'));
-  const requestTimeoutMs = Number(configService.get('FIRMS_REQUEST_TIMEOUT_MS'));
+  const syncEveryMinutes = Number(
+    configService.get('FIRMS_SYNC_EVERY_MINUTES'),
+  );
+  const requestTimeoutMs = Number(
+    configService.get('FIRMS_REQUEST_TIMEOUT_MS'),
+  );
 
   if (!mapKey) throw new Error('FIRMS_MAP_KEY is required.');
   if (!baseUrl) throw new Error('FIRMS_BASE_URL is required.');
@@ -66,7 +70,9 @@ export function getFirmsSettings(configService: ConfigService): FirmsSettings {
     syncEveryMinutes < 1 ||
     syncEveryMinutes > 59
   ) {
-    throw new Error('FIRMS_SYNC_EVERY_MINUTES must be an integer between 1 and 59.');
+    throw new Error(
+      'FIRMS_SYNC_EVERY_MINUTES must be an integer between 1 and 59.',
+    );
   }
   if (!Number.isInteger(requestTimeoutMs) || requestTimeoutMs < 1000) {
     throw new Error('FIRMS_REQUEST_TIMEOUT_MS must be an integer >= 1000.');

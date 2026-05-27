@@ -6,9 +6,7 @@ import {
   TableIndex,
 } from 'typeorm';
 
-export class CreateIngestionRunsTable20260415110000
-  implements MigrationInterface
-{
+export class CreateIngestionRunsTable20260415110000 implements MigrationInterface {
   public readonly name = 'CreateIngestionRunsTable20260415110000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -110,7 +108,10 @@ export class CreateIngestionRunsTable20260415110000
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropIndex('ingestion_runs', 'IDX_ingestion_runs_ingested_at');
+    await queryRunner.dropIndex(
+      'ingestion_runs',
+      'IDX_ingestion_runs_ingested_at',
+    );
     await queryRunner.dropCheckConstraint(
       'ingestion_runs',
       'CHK_ingestion_runs_sources_not_empty',

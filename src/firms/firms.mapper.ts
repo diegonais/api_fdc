@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { createHash } from 'crypto';
-import {
-  DetectionSourceType,
-} from '../detections/entities/detection.entity';
+import { DetectionSourceType } from '../detections/entities/detection.entity';
 import { FirmsSource } from './firms.constants';
 import {
   DetectionInsertPayload,

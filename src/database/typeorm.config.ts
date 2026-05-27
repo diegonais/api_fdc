@@ -2,10 +2,14 @@ import { ConfigService } from '@nestjs/config';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { parseBoolean } from '../config/parse-env.util';
 
-export const getTypeOrmConfig = (configService: ConfigService): TypeOrmModuleOptions => {
+export const getTypeOrmConfig = (
+  configService: ConfigService,
+): TypeOrmModuleOptions => {
   const databaseUrl = configService.get<string>('DATABASE_URL');
   const dbSsl = parseBoolean(configService.get('DB_SSL'));
-  const dbTimezone = String(configService.get<string>('TZ') || 'America/La_Paz').trim();
+  const dbTimezone = String(
+    configService.get<string>('TZ') || 'America/La_Paz',
+  ).trim();
 
   const common: TypeOrmModuleOptions = {
     type: 'postgres',

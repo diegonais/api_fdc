@@ -15,7 +15,8 @@ export class HealthController {
 
   @ApiOperation({
     summary: 'Estado de salud del servicio',
-    description: 'Valida conectividad con la base de datos y devuelve el estado general.',
+    description:
+      'Valida conectividad con la base de datos y devuelve el estado general.',
   })
   @ApiOkResponse({
     description: 'Servicio y base de datos disponibles.',

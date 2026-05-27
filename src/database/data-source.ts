@@ -11,7 +11,8 @@ import { CreateIngestionRunsTable20260415110000 } from './migrations/20260415110
 
 const databaseUrl = process.env.DATABASE_URL;
 const dbSsl = parseBoolean(process.env.DB_SSL);
-const dbTimezone = String(process.env.TZ || 'America/La_Paz').trim() || 'America/La_Paz';
+const dbTimezone =
+  String(process.env.TZ || 'America/La_Paz').trim() || 'America/La_Paz';
 
 const dataSource = new DataSource({
   type: 'postgres',

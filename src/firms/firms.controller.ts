@@ -23,7 +23,8 @@ export class FirmsController {
   @ApiBody({
     type: SyncFirmsDto,
     required: false,
-    description: 'Parametros opcionales para controlar la ventana y fuentes a sincronizar.',
+    description:
+      'Parametros opcionales para controlar la ventana y fuentes a sincronizar.',
   })
   @ApiOkResponse({
     description: 'Resumen de la sincronizacion manual.',

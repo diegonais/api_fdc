@@ -12,14 +12,32 @@ services:
       TZ: ${TZ}
       PGTZ: ${TZ}
     ports:
-      - "${DB_PORT}:5432"
+      - '127.0.0.1:${DB_PORT}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME} -d ${DB_NAME}']
       interval: 10s
       timeout: 5s
       retries: 5
+
+  api:
+    build:
+      context: .
+    container_name: api_fdc_api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DB_HOST: db
+      DB_PORT: 5432
+    ports:
+      - '${PORT:-3001}:${PORT:-3001}'
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ['sh', '-c', 'yarn migration:run:prod && node dist/main']
 
 volumes:
   postgres_data:

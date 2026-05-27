@@ -25,7 +25,8 @@ export class FindDetectionsQueryDto {
   source?: DetectionSourceType;
 
   @ApiPropertyOptional({
-    description: 'Fecha inicial de adquisicion (inclusive) en formato YYYY-MM-DD.',
+    description:
+      'Fecha inicial de adquisicion (inclusive) en formato YYYY-MM-DD.',
     format: 'date',
     example: '2026-04-01',
   })
@@ -34,7 +35,8 @@ export class FindDetectionsQueryDto {
   date_from?: string;
 
   @ApiPropertyOptional({
-    description: 'Fecha final de adquisicion (inclusive) en formato YYYY-MM-DD.',
+    description:
+      'Fecha final de adquisicion (inclusive) en formato YYYY-MM-DD.',
     format: 'date',
     example: '2026-04-14',
   })

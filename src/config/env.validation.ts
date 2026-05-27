@@ -2,7 +2,9 @@ import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
   PORT: Joi.number().port().default(3001),
-  NODE_ENV: Joi.string().valid('development', 'production', 'test').default('development'),
+  NODE_ENV: Joi.string()
+    .valid('development', 'production', 'test')
+    .default('development'),
   TZ: Joi.string().default('America/La_Paz'),
 
   FIRMS_MAP_KEY: Joi.string().allow('').default(''),
@@ -16,13 +18,33 @@ export const envValidationSchema = Joi.object({
   FIRMS_DISABLE_CRON: Joi.boolean().default(false),
   FIRMS_REQUEST_TIMEOUT_MS: Joi.number().integer().min(1000).default(15000),
 
-  DATABASE_URL: Joi.string().allow('').default(''),
+  DATABASE_URL: Joi.string().trim().uri().allow('').default(''),
 
-  DB_HOST: Joi.string().required(),
-  DB_PORT: Joi.number().port().required(),
-  DB_USERNAME: Joi.string().required(),
-  DB_PASSWORD: Joi.string().required(),
-  DB_NAME: Joi.string().required(),
+  DB_HOST: Joi.when('DATABASE_URL', {
+    is: Joi.string().trim().min(1),
+    then: Joi.string().optional(),
+    otherwise: Joi.string().required(),
+  }),
+  DB_PORT: Joi.when('DATABASE_URL', {
+    is: Joi.string().trim().min(1),
+    then: Joi.number().port().optional(),
+    otherwise: Joi.number().port().required(),
+  }),
+  DB_USERNAME: Joi.when('DATABASE_URL', {
+    is: Joi.string().trim().min(1),
+    then: Joi.string().optional(),
+    otherwise: Joi.string().required(),
+  }),
+  DB_PASSWORD: Joi.when('DATABASE_URL', {
+    is: Joi.string().trim().min(1),
+    then: Joi.string().optional(),
+    otherwise: Joi.string().required(),
+  }),
+  DB_NAME: Joi.when('DATABASE_URL', {
+    is: Joi.string().trim().min(1),
+    then: Joi.string().optional(),
+    otherwise: Joi.string().required(),
+  }),
   DB_SSL: Joi.boolean().default(false),
   DB_SYNCHRONIZE: Joi.boolean().default(false),
   DB_LOGGING: Joi.boolean().default(false),

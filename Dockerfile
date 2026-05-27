@@ -15,13 +15,13 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=3001
 
 COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile --production=true && yarn cache clean
 
 COPY --from=builder /app/dist ./dist
 
-EXPOSE 3000
+EXPOSE 3001
 
 CMD ["node", "dist/main"]

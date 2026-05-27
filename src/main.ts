@@ -55,7 +55,7 @@ async function bootstrap() {
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api_fdc/v1/docs', app, swaggerDocument);
 
-  const port = Number(process.env.PORT) || 3000;
+  const port = Number(process.env.PORT) || 3001;
   await app.listen(port, '0.0.0.0');
 }
 bootstrap().catch((error) => {

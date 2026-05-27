@@ -1,5 +1,9 @@
 import { Injectable, LoggerService } from '@nestjs/common';
-import pino, { type Bindings, type Logger as PinoLogger, type LoggerOptions } from 'pino';
+import pino, {
+  type Bindings,
+  type Logger as PinoLogger,
+  type LoggerOptions,
+} from 'pino';
 
 @Injectable()
 export class AppLogger implements LoggerService {
@@ -102,7 +106,11 @@ export class AppLogger implements LoggerService {
     }
 
     if (message && typeof message === 'object') {
-      this.logWithPayload(level, { ...payload, ...(message as Record<string, unknown>) }, 'Log entry');
+      this.logWithPayload(
+        level,
+        { ...payload, ...(message as Record<string, unknown>) },
+        'Log entry',
+      );
       return;
     }
 

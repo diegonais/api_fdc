@@ -6,9 +6,7 @@ import {
   TableIndex,
 } from 'typeorm';
 
-export class CreateDetectionsAndSourceDetailsTables20260414133000
-  implements MigrationInterface
-{
+export class CreateDetectionsAndSourceDetailsTables20260414133000 implements MigrationInterface {
   public readonly name = 'CreateDetectionsAndSourceDetailsTables20260414133000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -339,15 +337,27 @@ export class CreateDetectionsAndSourceDetailsTables20260414133000
     await queryRunner.query(`
       DROP TRIGGER IF EXISTS "TRG_modis_details_set_updated_at" ON "modis_details"
     `);
-    await queryRunner.dropIndex('modis_details', 'UQ_modis_details_detection_id');
-    await queryRunner.dropForeignKey('modis_details', 'FK_modis_details_detection_id');
+    await queryRunner.dropIndex(
+      'modis_details',
+      'UQ_modis_details_detection_id',
+    );
+    await queryRunner.dropForeignKey(
+      'modis_details',
+      'FK_modis_details_detection_id',
+    );
     await queryRunner.dropTable('modis_details');
 
     await queryRunner.query(`
       DROP TRIGGER IF EXISTS "TRG_viirs_details_set_updated_at" ON "viirs_details"
     `);
-    await queryRunner.dropIndex('viirs_details', 'UQ_viirs_details_detection_id');
-    await queryRunner.dropForeignKey('viirs_details', 'FK_viirs_details_detection_id');
+    await queryRunner.dropIndex(
+      'viirs_details',
+      'UQ_viirs_details_detection_id',
+    );
+    await queryRunner.dropForeignKey(
+      'viirs_details',
+      'FK_viirs_details_detection_id',
+    );
     await queryRunner.dropTable('viirs_details');
 
     await queryRunner.query(`
@@ -356,7 +366,10 @@ export class CreateDetectionsAndSourceDetailsTables20260414133000
     await queryRunner.dropIndex('detections', 'UQ_detections_dedupe_key');
     await queryRunner.dropIndex('detections', 'IDX_detections_source_type');
     await queryRunner.dropIndex('detections', 'IDX_detections_satellite');
-    await queryRunner.dropIndex('detections', 'IDX_detections_latitude_longitude');
+    await queryRunner.dropIndex(
+      'detections',
+      'IDX_detections_latitude_longitude',
+    );
     await queryRunner.dropIndex('detections', 'IDX_detections_acq_date');
     await queryRunner.dropTable('detections');
 

@@ -11,7 +11,12 @@ import { FirmsMapper } from './firms.mapper';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Detection, ViirsDetail, ModisDetail, IngestionRun]),
+    TypeOrmModule.forFeature([
+      Detection,
+      ViirsDetail,
+      ModisDetail,
+      IngestionRun,
+    ]),
   ],
   controllers: [FirmsController],
   providers: [FirmsClient, FirmsMapper, FirmsIngestionService],

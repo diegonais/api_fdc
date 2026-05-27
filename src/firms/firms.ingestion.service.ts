@@ -414,13 +414,13 @@ export class FirmsIngestionService implements OnModuleInit {
   }
 
   private async shouldRunInitialSync(): Promise<boolean> {
-    const rows = (await this.dataSource.query(
+    const rows = await this.dataSource.query<Array<Record<string, unknown>>>(
       `
         SELECT 1
         FROM detections
         LIMIT 1
       `,
-    )) as unknown[];
+    );
 
     return rows.length === 0;
   }

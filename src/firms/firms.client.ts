@@ -18,7 +18,9 @@ export class FirmsClient {
     }
 
     if (dayRange > FIRMS_MAX_DAY_RANGE) {
-      throw new Error(`dayRange cannot be greater than ${FIRMS_MAX_DAY_RANGE}.`);
+      throw new Error(
+        `dayRange cannot be greater than ${FIRMS_MAX_DAY_RANGE}.`,
+      );
     }
 
     const settings = getFirmsSettings(this.configService);

@@ -148,7 +148,7 @@ export class DetectionsRepository {
 
   async findAllForExcelExport(): Promise<ExcelExportDataset> {
     const [detections, viirsDetails, modisDetails] = await Promise.all([
-      this.detectionRepository.query(`
+      this.detectionRepository.query<DetectionExportRow[]>(`
         SELECT
           id,
           source_type,
@@ -170,7 +170,7 @@ export class DetectionsRepository {
         FROM detections
         ORDER BY acq_date DESC, created_at DESC, id DESC
       `),
-      this.detectionRepository.query(`
+      this.detectionRepository.query<ViirsDetailExportRow[]>(`
         SELECT
           id,
           detection_id,
@@ -181,7 +181,7 @@ export class DetectionsRepository {
         FROM viirs_details
         ORDER BY created_at DESC
       `),
-      this.detectionRepository.query(`
+      this.detectionRepository.query<ModisDetailExportRow[]>(`
         SELECT
           id,
           detection_id,
